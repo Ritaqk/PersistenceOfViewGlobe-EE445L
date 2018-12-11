@@ -9,48 +9,68 @@
 #define NVIC_ST_CTRL_INTEN      0x00000002  // Interrupt enable
 #define NVIC_ST_CTRL_ENABLE     0x00000001  // Counter mode
 #define NVIC_ST_RELOAD_M        0x00FFFFFF  // Counter load value
+#define PF1       (*((volatile uint32_t *)0x40025008))
 
 void (*UserTask)(void);   // user function
-uint32_t Last = 0;
-uint32_t Now;
-uint32_t Time_diff;
-uint32_t Period_sec;
+uint32_t HallCount = 0;
+uint32_t Freq_Hz = 0;
 
-
+// Hall effet sensor wired to both PB3 and PC4
+// Input cap for frequency measure on Timer3 PB3 T3CCP1
 void Hall_Init(void(*task)(void)) {
-    // Initialize PF1 and PF2 for Debug
-    SYSCTL_RCGCGPIO_R |= 0x08;       // activate port D
-    while ((SYSCTL_PRGPIO_R & 0x08) == 0) {}; // ready?
-    GPIO_PORTD_DIR_R &= ~0x01;        // make PD0 Input
-    GPIO_PORTD_AFSEL_R &= ~0x01;     // disable alt funct on PD0
-    GPIO_PORTD_DEN_R |= 0x01;        // enable digital I/O on PD0
-    GPIO_PORTD_PCTL_R = (GPIO_PORTD_PCTL_R & 0xFFFFFFF0);
-    GPIO_PORTD_AMSEL_R = 0;          // disable analog functionality on PD analog functionality on PD
+    SYSCTL_RCGCWTIMER_R |= 0x01;  // activate WTimer0
+    SYSCTL_RCGCGPIO_R |= 0x02;       // activate port C and B
+    while ((SYSCTL_PRGPIO_R & 0x02) == 0) {}; // ready?
     UserTask = task;
-    GPIO_PORTD_IS_R &= ~0x01;     // (d) PD0 is edge-sensitive
-    GPIO_PORTD_IBE_R &= ~0x01;    // PD0 is not both edges
-    GPIO_PORTD_IEV_R |= 0x01;    // PD0 rising edge event
-    GPIO_PORTD_ICR_R = 0x01;      // (e) clear flag0
-    GPIO_PORTD_IM_R |= 0x01;      // (f) arm interrupt on PD0
-    NVIC_PRI0_R = (NVIC_PRI0_R & 0x00FFFFFF) | 0x20000000; // (g) priority 1
-    NVIC_EN0_R = 1 << 3;      // (h) enable interrupt 19 in NVIC
-    Last = NVIC_ST_CURRENT_R;
+
+    // PB3 init
+    GPIO_PORTB_DIR_R &= ~0x08;        // make PB3 Input
+    GPIO_PORTB_AFSEL_R |= 0x08;     // enable alt funct on PB3
+    GPIO_PORTB_DEN_R |= 0x08;        // enable digital I/O on PB3
+    GPIO_PORTB_PCTL_R = (GPIO_PORTB_PCTL_R & 0xFFFF0FFF); // Normal GPIO
+    GPIO_PORTB_IS_R &= ~0x08;     // (d) PB3 is edge-sensitive
+    GPIO_PORTB_IBE_R &= ~0x08;    //     PB3 is not both edges
+    GPIO_PORTB_IEV_R &= ~0x08;    //     PB3 falling edge event
+    GPIO_PORTB_ICR_R = 0x08;      // (e) clear flag3
+    GPIO_PORTB_IM_R |= 0x08;      // (f) arm interrupt on PB3
+    NVIC_PRI0_R = (NVIC_PRI0_R & 0xFFFF00FF) | 0x00002000; // 8) priority 1
+    // interrupts enabled in the main program after all devices initialized
+    // vector number 17, interrupt number 1
+    NVIC_EN0_R = 1 << 1;  // 9) enable IRQ 1 in NVIC
+
+    WTIMER0_CTL_R = 0x00000000;     // 1) disable WTIMER0A during setup
+    WTIMER0_CFG_R = 0x00000004;     // 2) configure for 32-bit split mode
+    WTIMER0_TAMR_R = 0x00000002;    // 3) configure for periodic mode, default down-count settings
+    WTIMER0_TAILR_R = 79999999;     // 1 Hz
+
+    WTIMER0_TBMR_R = 0x00000003;     // Edge count, capture mode 011
+    WTIMER0_TBILR_R = 0xFFFFFFFF;    // start value
+    // bits 11-10 in CTL are 0 for rising edge
+
+    WTIMER0_ICR_R = 0x00000001;    // 6) clear WTIMER0A timeout flag
+    WTIMER0_IMR_R = 0x00000001;    // 7) arm timeout interrupt
+
+    NVIC_PRI23_R = (NVIC_PRI23_R & 0xFF00FFFF) | 0x00200000; // 8) priority 1
+    // interrupts enabled in the main program after all devices initialized
+    // vector number 110, interrupt number 94
+    NVIC_EN2_R = 1 << 30;  // 9) enable IRQ 35 in NVIC
+    WTIMER0_CTL_R = 0x00000101;    // 10) enable WTIMER0A AND wTIMER0B
 }
 
-uint32_t Hall_Period(void) {
-    return Period_ns;
+// Hz is same as RPS
+uint32_t Hall_Frequency(void) {
+    return Freq_Hz;
 }
 
-// Get the time between interrupts and calculate current speed
-void GPIOPortD_Handler(void) {
-    GPIO_PORTD_ICR_R = 0x01;      // acknowledge flag4
-    Now = NVIC_ST_CURRENT_R;
-    if (Now > Last) {
-        Time_diff = last + (0x00FFFFFF - now); // Handle Overflow
-    }
-    else {
-        Time_diff = last - now;
-    }
-    Period_ns = (25 * Time_diff)/2;
-    (*UserTask)(); 
+void WideTimer0A_Handler(void) {
+    PF1 ^= 0x02;
+    WTIMER0_ICR_R = 0x00000001;      // acknowledge timer0A timeout
+    Freq_Hz = HallCount; // f = (pulses)/(fixed time)
+    HallCount = 0;
+}
+
+void GPIOPortB_Handler(void) {
+    GPIO_PORTB_ICR_R = 0x08;      // (e) clear flag3
+    HallCount += 1;
+    (*UserTask)();
 }

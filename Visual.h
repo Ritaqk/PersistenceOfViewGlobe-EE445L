@@ -33,16 +33,17 @@ void Visual_Crossfade(uint32_t period);
 
 //********Visual_Globe**************
 // Set to Globe mode
-// inputs:  Make it Binary or Crossfade
+// inputs: None
 // outputs: None
-void Visual_Globe(uint8_t RGB);
+void Visual_Globe(void);
 
-//********Visual_Music**************
-// Set to Music Visualizer mode, start ADC and do FFT
+//********Visual_Spectrogram**************
+// Set to Music Visualizer spectrogram mode, start ADC and do FFT
 // inputs:  None
 // outputs: None
-void Visual_Music(void);
+void Visual_Spectrogram(void);
 
+void Visual_Music(void);
 
 //********Visual_Stop************
 // Stop whatever the current mode is outputting

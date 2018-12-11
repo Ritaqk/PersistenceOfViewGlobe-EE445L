@@ -19,15 +19,19 @@
 #include "Visual.h"
 #include "fxp.h"
 #include "SysTick.h"
+#include "Hall.h"
 
 #define SSI3_DR ((volatile uint32_t *)0x4000B008)
 #define COLOR_MODE 1
 #define GLOBE_MODE 2
 #define MUSIC_MODE 3
+#define SPECTRO_MODE 4
 #define OFF_MODE   0
 
 void EnableInterrupts(void);
 void PortF_Init(void);
+void Crossfade(void); // LED Strip test
+void Blink(void);
 void DisableInterrupts(void);   // Defined in startup.s
 void WaitForInterrupt(void);    // Defined in startup.s
 
@@ -87,12 +91,16 @@ void Blynk_to_TM4C(void) {
                 current_mode = COLOR_MODE;
                 break;
             case GLOBE_MODE:
-                Visual_Globe(1);
+                Visual_Globe();
                 current_mode = GLOBE_MODE;
                 break;
             case MUSIC_MODE:
                 Visual_Music();
                 current_mode = MUSIC_MODE;
+                break;
+            case SPECTRO_MODE:
+                Visual_Spectrogram();
+                current_mode = SPECTRO_MODE;
                 break;
             }
         }
@@ -105,12 +113,16 @@ void Blynk_to_TM4C(void) {
                     current_mode = COLOR_MODE;
                     break;
                 case GLOBE_MODE:
-                    Visual_Globe(1);
+                    Visual_Globe();
                     current_mode = GLOBE_MODE;
                     break;
                 case MUSIC_MODE:
                     Visual_Music();
                     current_mode = MUSIC_MODE;
+                    break;
+                case SPECTRO_MODE:
+                    Visual_Spectrogram();
+                    current_mode = SPECTRO_MODE;
                     break;
                 }
             }
@@ -151,29 +163,37 @@ void TM4C_to_Blynk(uint32_t pin, uint32_t value) {
 
 //Want to send current Speed to Blynk
 void SendInformation(void) {
-    uint32_t static period;
-    // period = Hall_Period();
-    period = 50;
-    TM4C_to_Blynk(77, period);  // VP77
+    uint32_t static freq;
+    freq = Hall_Frequency();
+    //period = 50;
+    TM4C_to_Blynk(77, freq);  // VP77
 }
 
 
 int main(void) {
+    // volatile uint32_t delay;
     PLL_Init(Bus80MHz);  // now running at 80 MHz
     SysTick_Init();
     PortF_Init();
-    ESP8266_Init();       // Enable ESP8266 Serial Port (UART2)
-    ESP8266_Reset();      // Reset the WiFi module
-    ESP8266_SetupWiFi();  // Setup communications to Blynk Server
-    Timer2_Init(&Blynk_to_TM4C, 40000000);
+
+#ifdef DEBUG1
+    UART_Init(5);         // Enable Debug Serial Port
+    UART_OutString("\n\rEE445L Lab 4D\n\rBlynk example");
+#endif
+
+     ESP8266_Init();       // Enable ESP8266 Serial Port (UART2)
+     ESP8266_Reset();      // Reset the WiFi module
+     ESP8266_SetupWiFi();  // Setup communications to Blynk Server
+     Timer2_Init(&Blynk_to_TM4C, 40000000);
     // check for receive data from Blynk App every 10ms
     Visual_Init();
-    Visual_Crossfade(10000000);
-    //Visual_Globe(1);
-    //Visual_Music();
-
-    Timer3_Init(&SendInformation, 40000000);
-    // Send data back to Blynk App every 1/2 second
+    //Visual_Crossfade(10000000);
+    //Visual_Globe();
+    Visual_Music();
+    //Visual_Spectrogram();
+    //Visual_Off();
+     Timer3_Init(&SendInformation, 80000000);
+    // Send data back to Blynk App every 1 second
     EnableInterrupts();
 
     while (1) {

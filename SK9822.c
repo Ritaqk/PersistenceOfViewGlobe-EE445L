@@ -50,7 +50,7 @@ void LED_Init(void) {
     // clock divider for 8 MHz SSIClk (assumes 80 MHz PLL)
     SSI3_CR0_R |=  0x00000000;          // SCR = 3 so denom = 4, 80MHz/4 = 20 MHz SSI Clock
 
-    SSI3_CPSR_R = (SSI3_CPSR_R & ~SSI_CPSR_CPSDVSR_M) + 4 ; // 8 = 10MHz 4 = 20 MHz
+    SSI3_CPSR_R = (SSI3_CPSR_R & ~SSI_CPSR_CPSDVSR_M) + 8 ; // 8 = 10MHz 4 = 20 MHz
     SSI3_CR0_R &= ~(SSI_CR0_SCR_M |       // SCR = 0 (8 Mbps data rate)
                     SSI_CR0_SPH |         // SPH = 0
                     SSI_CR0_SPO);         // SPO = 0
