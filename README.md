@@ -1,4 +1,5 @@
 Persistence of View Globe for EE445L final project.
+We won first place in the EE445L Fall 2018 Design Competition!
 
 A PCB with a TM4C MCU is mounted at the center of a large 3D printed ring. 
 A strip of LEDs is mounted on one side of the ring. 
